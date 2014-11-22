@@ -1,0 +1,22 @@
+{
+  "name": "jsgedcom",
+  "version": "0.1.0",
+  "authors": [
+    "jon.beezley@gmail.com"
+  ],
+  "description": "Javascript library for parsing gedcom files",
+  "main": "gedcom.js",
+  "keywords": [
+    "gedcom",
+    "genealogy"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/jbeezley/jsgedcom",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}

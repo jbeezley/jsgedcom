@@ -1,5 +1,5 @@
 /* jshint: browser */
-(function (GLOBAL, _) {
+(function (GLOBAL) {
     'use strict';
     
     var gedcom = {};
@@ -22,7 +22,7 @@
             var lineArr = line.trim().split(/\s+/);
             var level = Number(lineArr[0]);
             var tag = lineArr[1] || '';
-            var prop = _.rest(lineArr, 2).join(' ');
+            var prop = lineArr.slice(2).join(' ');
             var id = tag.match(re_link);
             var link = prop.match(re_link);
             var rec;
@@ -100,4 +100,4 @@
     if (GLOBAL.File && GLOBAL.FileReader && GLOBAL.FileList && GLOBAL.Blob) {
         GLOBAL.gedcom = gedcom;
     }
-})(window, window._);
+})(window);
