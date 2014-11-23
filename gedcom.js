@@ -316,7 +316,10 @@
                 }
             );
         });
-        return target;
+        if (target.date || target.place) {
+            return target;
+        }
+        return null;
     }
 
     function normalizeBirth(person) {
@@ -325,14 +328,24 @@
     }
 
     function normalizeRes(person) {
-        person.res = (person.RESI || []).map(function (r) {
+        var res = (person.RESI || []).map(function (r) {
             return normalizeDatePlace([r]);
         });
+        Array.prototype.push.apply(res, (person.CENS || []).map(function (r) {
+            return normalizeDatePlace([r]);
+        }));
         delete person.RESI;
+        delete person.CENS;
+        person.res = res;
     }
 
     function normalizeDeath(person) {
-        person.died = normalizeDatePlace(person.DEAT);
+        if (person.DEAT && person.DEAT[0] &&
+            person.DEAT[0].value.toUpperCase()[0] === 'Y') {
+            person.died = true;
+        } else {
+            person.died = normalizeDatePlace(person.DEAT);
+        }
         delete person.DEAT;
     }
 
@@ -388,6 +401,25 @@
     }
 
     function normalizeFamily(family) {
+        family.children = [];
+        family.parents = [];
+        ['HUSB', 'WIFE', 'CHIL'].forEach(function (type) {
+            var arr = family.parents;
+            if (type === 'CHIL') {
+                arr = family.children;
+            }
+            if (family[type] && family[type].length) {
+                family[type].forEach(function(p) {
+                    arr.push(p.value);
+                });
+            }
+            delete family[type];
+        });
+
+        family.marriage = normalizeDatePlace(family.MARR);
+        delete family.MARR;
+        family.license = normalizeDatePlace(family.MARL);
+        delete family.MARL;
     }
 
     /**
