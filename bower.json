@@ -5,7 +5,7 @@
     "jon.beezley@gmail.com"
   ],
   "description": "Javascript library for parsing gedcom files",
-  "main": "gedcom.js",
+  "main": "dist/jsgedcom.js",
   "keywords": [
     "gedcom",
     "genealogy"
