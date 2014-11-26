@@ -1,455 +1,147 @@
-/* jshint: browser */
-(function (GLOBAL) {
-    'use strict';
-    /**
-     * @namespace
-     */
-    var gedcom = {};
-
-    /**
-     * Implementation.
-     * @private
-     */
-    function _parse(content) {
-        var lines = content.trim().split(/\r?\n/);
-        var records = [];
-        var current = null;
-        var sub, chi;
-        var ignored = [];
-
-        // matches links to other records
-        var re_link = new RegExp('^@([^@].*)@$');
-
-        // Check compatibility
-        if (lines[0].split(/\s+/)[1] !== 'HEAD') {
-            return null;
-        }
-
-        lines.forEach(function (line, index) {
-            var lineArr = line.trim().split(/\s+/);
-            var level = Number(lineArr[0]);
-            var tag = lineArr[1] || '';
-            var prop = lineArr.slice(2).join(' ');
-            var id = tag.match(re_link);
-            var link = prop.match(re_link);
-            var rec;
-
-            if (!current && !id) {
-                return; // ignoring header
-            }
-
-            if (id) {
-                sub = null;
-                chi = null;
-                current = {
-                    type: prop,
-                    id: id[1]
-                };
-                records.push(current);
-                return;
-            }
-
-            if (link) {
-                link = link[1];
-            }
-
-            if (level === 1) {
-                if (!current[tag]) {
-                    chi = {
-                        value: link || prop
-                    };
-                    sub = [chi];
-                    current[tag] = sub;
-                } else {
-                    chi = {
-                        value: link || prop
-                    };
-                    sub.push(chi);
-                }
-            } else if (level === 2) {
-                if (!chi[tag]) {
-                    chi[tag] = [];
-                }
-                chi[tag].push(link || prop);
-            } else if (level === 0 && tag === 'TRLR') {
-                return; // end of file record
-            } else {
-                ignored.push({
-                    line: index,
-                    content: line,
-                    record: current
-                });
-                console.log('Unhandled structure at line ' + index);
-            }
-            
-        });
-
-        return {
-            records: records,
-            ignored: ignored
-        };
-    }
-
-    /**
-     * Parses a gedcom file and constructs a raw JSON compatible object
-     * containing all information from the file.  Not all properties
-     * are handled by this parser.  Unhandled lines are written to
-     * the console and reported in the returned object.
-     *
-     * @param {(File|string)} file The file object or string content of a gedcom file.
-     * @param {function} done A callback function taking the parsed result as an argument.
-     *
-     * @example
-     * gedcom.parse(file, function (records, ignored) {
-     *   // records:
-     *   [
-     *     {
-     *       type: 'INDI',
-     *       id: 'I1'
-     *       NAME: [
-     *         value: 'John /Doe/',
-     *         'GIVN': [
-     *           'John'
-     *         ],
-     *         'SURN': [
-     *           'Doe'
-     *         ]
-     *       ],
-     *       ...
-     *     },
-     *     ...
-     *     {
-     *       type: 'FAM',
-     *       id: 'F1',
-     *       HUSB: [
-     *         {
-     *           value: 'I1'
-     *         }
-     *       ],
-     *       WIFE: [
-     *         {
-     *           value: 'I2'
-     *         }
-     *       ],
-     *       CHIL: [
-     *         ...
-     *       ]
-     *     },
-     *     ...
-     *   ]
-     *
-     *   // ignored: array of lines ignored
-     *   [
-     *     {
-     *       line: 100,
-     *       content: '3 SOME unhandled content',
-     *       record: {}  // The record containing the line.
-     *     }
-     *   ]
-     * });
-     */
-    gedcom.parse = function (file, done) {
-        var result;
-        if (typeof file === 'string') {
-            try {
-                result = _parse(file);
-            } catch(err) {
-                done(null, err);
-                return null;
-            }
-            done(result.records, result.ignored);
-            return result.records;
-        } else {
-            // check for browswer compatibility
-            if (!GLOBAL.FileReader) {
-                throw new Error('Brower does not support HTTP5 FileReader.');
-            }
-        }
-        var reader = new FileReader();
-
-        reader.onload = function (evt) {
-            try {
-                result = _parse(evt.target.result);
-            } catch(err) {
-                done(null, err);
-            }
-            done(result.records, result.ignored);
-        };
-
-        reader.onerror = function () {
-            done(null);
-        };
-
-        reader.onabort = function () {
-            done(null);
-        };
-
-        reader.readAsText(file);
-    };
-
-    // caches data from geonames
-    var geocache = {};
-
-    /**
-     * Uses geonames service to get the coordinates of a place
-     * name.  The results are cached internally to limit API calls
-     * to geonames.
-     *
-     * @todo Unimplmented
-     */
-    gedcom.georeference = function (s, done) {
-        if (!geocache.hasOwnProperty(s)) {
-            geocache[s] = {
-                name: s,
-                longitude: 0,
-                latitude: 0
-            };
-        }
-        done(geocache[s]);
-    };
-
-    /**
-     * Generate a tree structure from the family records.
-     * For each person in the database, a new object is created
-     * with the following properties: ::
-     *   {
-     *     mothers: [],
-     *     fathers: [],
-     *     children: [],
-     *     spouses: [],
-     *     siblings: []
-     *   }
-     *
-     * @param {TAFFY} records A taffydb database of records from gedcom.parse
-     * @returns {object[]}
-     *
-     * @todo Unimplemented
-     */
-    gedcom.tree = function (records) {
-    };
-
-    /**
-     * Private normalization handlers.
-     * @private
-     */
-    function normalizeName(person) {
-        var names = person.NAME;
-        person.name = null;
-        delete person.NAME;
-
-        if (!names || !names.length) {
-            return 'No names present';
-        }
-
-        // maybe be smarter later, but for now just use the first
-        // object and throw away the rest.
-        name = names[0];
-
-        names.forEach(function (name) {
-            if (person.name) {
-                // already found
-                return;
-            }
-            var obj = {}, arr;
-            obj.first = 'UNKNOWN'; // allow unknown first name
-            obj.middle = []; // some people don't have exactly 1 middle name
-            if (name.SURN && name.SURN[0]) {
-                obj.last = name.SURN[0];
-            } else {
-                obj.last = name.value.match(/\/(.*)\//);
-                if (obj.last) {
-                    obj.last = obj.last[1];
+!function(a) {
+    "use strict";
+    function b(a) {
+        var b, c, d = a.trim().split(/\r?\n/), e = [], f = null, g = [], h = new RegExp("^@([^@].*)@$");
+        return "HEAD" !== d[0].split(/\s+/)[1] ? null : (d.forEach(function(a, d) {
+            var i = a.trim().split(/\s+/), j = Number(i[0]), k = i[1] || "", l = i.slice(2).join(" "), m = k.match(h), n = l.match(h);
+            if (f || m) {
+                if (m) return b = null, c = null, f = {
+                    type: l,
+                    id: m[1]
+                }, void e.push(f);
+                if (n && (n = n[1]), 1 === j) f[k] ? (c = {
+                    value: n || l
+                }, b.push(c)) : (c = {
+                    value: n || l
+                }, b = [ c ], f[k] = b); else if (2 === j) c[k] || (c[k] = []), c[k].push(n || l); else {
+                    if (0 === j && "TRLR" === k) return;
+                    g.push({
+                        line: d,
+                        content: a,
+                        record: f
+                    }), console.log("Unhandled structure at line " + d);
                 }
             }
-            if (name.GIVN && name.GIVN[0]) {
-                arr = name.GIVN[0].split(/\s+/);
-                if (arr[0]) {
-                    obj.first = arr[0];
-                }
-                obj.middle = arr.slice(1).join(' ');
-            }
-            person.name = obj;
+        }), {
+            records: e,
+            ignored: g
         });
     }
-
-    function normalizeDate(d) {
-        // The standard date method seems to do a pretty good job with this.
-        // Maybe handle invalid values here?
-        return new Date(d);
+    function c(a) {
+        var b = a.NAME;
+        return a.name = null, delete a.NAME, b && b.length ? (name = b[0], void b.forEach(function(b) {
+            if (!a.name) {
+                var c, d = {};
+                d.first = "UNKNOWN", d.middle = [], b.SURN && b.SURN[0] ? d.last = b.SURN[0] : (d.last = b.value.match(/\/(.*)\//), 
+                d.last && (d.last = d.last[1])), b.GIVN && b.GIVN[0] && (c = b.GIVN[0].split(/\s+/), 
+                c[0] && (d.first = c[0]), d.middle = c.slice(1).join(" ")), a.name = d;
+            }
+        })) : "No names present";
     }
-
-    // try to get the best date out of an array of date strings
-    // for now just using the longest string
-    function normalizeDates(dates) {
-        var out = {
+    function d(a) {
+        return new Date(a);
+    }
+    function e(a) {
+        var b = {
             alt: [],
-            date: new Date(NaN),
-            str: 'UNKNOWN'
-        };
-        var n = 0;
-        dates.forEach(function (d) {
-            out.alt.push(d);
-            if (n < d.length) {
-                n = d.length;
-                out.date = normalizeDate(d);
-                out.str = d;
-                if (!d.valueOf()) {
-                    n = 0;
-                }
-            }
-        });
-        return out.date;
+            date: new Date(0/0),
+            str: "UNKNOWN"
+        }, c = 0;
+        return a.forEach(function(a) {
+            b.alt.push(a), c < a.length && (c = a.length, b.date = d(a), b.str = a, a.valueOf() || (c = 0));
+        }), b.date;
     }
-
-    function normalizeDatePlace(source) {
-        var target = {
+    function f(a) {
+        var b = {
             date: null,
             place: null
         };
-
-        (source || []).forEach(function (b) {
-            target.date = normalizeDates(b.DATE || []);
-            normalizePlaces(
-                b.PLAC || [],
-                function (p) {
-                    target.place = p;
-                }
-            );
+        return (a || []).forEach(function(a) {
+            b.date = e(a.DATE || []), k(a.PLAC || [], function(a) {
+                b.place = a;
+            });
+        }), b.date || b.place ? b : null;
+    }
+    function g(a) {
+        a.born = f(a.BIRT), delete a.BIRT;
+    }
+    function h(a) {
+        var b = (a.RESI || []).map(function(a) {
+            return f([ a ]);
         });
-        if (target.date || target.place) {
-            return target;
-        }
-        return null;
+        Array.prototype.push.apply(b, (a.CENS || []).map(function(a) {
+            return f([ a ]);
+        })), delete a.RESI, delete a.CENS, a.res = b;
     }
-
-    function normalizeBirth(person) {
-        person.born = normalizeDatePlace(person.BIRT);
-        delete person.BIRT;
+    function i(a) {
+        a.died = a.DEAT && a.DEAT[0] && "Y" === a.DEAT[0].value.toUpperCase()[0] ? !0 : f(a.DEAT), 
+        delete a.DEAT;
     }
-
-    function normalizeRes(person) {
-        var res = (person.RESI || []).map(function (r) {
-            return normalizeDatePlace([r]);
-        });
-        Array.prototype.push.apply(res, (person.CENS || []).map(function (r) {
-            return normalizeDatePlace([r]);
-        }));
-        delete person.RESI;
-        delete person.CENS;
-        person.res = res;
+    function j(a) {
+        a.buried = f(a.BURI), delete a.BURI;
     }
-
-    function normalizeDeath(person) {
-        if (person.DEAT && person.DEAT[0] &&
-            person.DEAT[0].value.toUpperCase()[0] === 'Y') {
-            person.died = true;
-        } else {
-            person.died = normalizeDatePlace(person.DEAT);
-        }
-        delete person.DEAT;
+    function k(a, b) {
+        a && a[0] ? o.georeference(a[0], b) : b(null);
     }
-
-    function normalizeBuried(person) {
-        person.buried = normalizeDatePlace(person.BURI);
-        delete person.BURI;
+    function l(a) {
+        var b;
+        a.SEX && a.SEX[0] && "string" == typeof a.SEX[0].value ? (b = a.SEX[0].value, a.sex = "M" === b.toUpperCase() ? "M" : "F" === b.toUpperCase() ? "F" : "O") : a.sex = null, 
+        delete a.SEX;
     }
-
-    function normalizePlace(place, done) {
-        // hmmm don't realy want an async method here...
-        // maybe preload all PLAC tags before normalization
-        gedcom.georeference(place, done);
+    function m(a) {
+        delete a.CHAN, delete a._UID, delete a.type, l(a), c(a), g(a), h(a), i(a), j(a);
     }
-    
-    function normalizePlaces(places, done) {
-        if (places && places[0]) {
-            gedcom.georeference(places[0], done);
-        } else {
-            done(null);
-        }
+    function n(a) {
+        a.children = [], a.parents = [], [ "HUSB", "WIFE", "CHIL" ].forEach(function(b) {
+            var c = a.parents;
+            "CHIL" === b && (c = a.children), a[b] && a[b].length && a[b].forEach(function(a) {
+                c.push(a.value);
+            }), delete a[b];
+        }), a.marriage = f(a.MARR), delete a.MARR, a.license = f(a.MARL), delete a.MARL, 
+        a.divorce = f(a.DIV), delete a.DIV;
     }
-
-    function normalizeSex(person) {
-        var s;
-        if (person.SEX &&
-            person.SEX[0] &&
-            typeof person.SEX[0].value === 'string'
-           ) {
-            s = person.SEX[0].value;
-            if (s.toUpperCase() === 'M') {
-                person.sex = 'M';
-            } else if (s.toUpperCase() === 'F') {
-                person.sex = 'F';
-            } else {
-                person.sex = 'O'; // other, I guess
+    var o = {};
+    o.parse = function(c, d) {
+        var e;
+        if ("string" == typeof c) {
+            try {
+                e = b(c);
+            } catch (f) {
+                return d(null, f), null;
             }
-        } else {
-            person.sex = null;
+            return d(e.records, e.ignored), e.records;
         }
-        delete person.SEX;
-    }
-
-    function normalizePerson(person) {
-        delete person.CHAN;
-        delete person._UID;
-        delete person.type;
-        normalizeSex(person);
-        normalizeName(person);
-        normalizeBirth(person);
-        normalizeRes(person);
-        normalizeDeath(person);
-        normalizeBuried(person);
-    }
-
-    function normalizeFamily(family) {
-        family.children = [];
-        family.parents = [];
-        ['HUSB', 'WIFE', 'CHIL'].forEach(function (type) {
-            var arr = family.parents;
-            if (type === 'CHIL') {
-                arr = family.children;
+        if (!a.FileReader) throw new Error("Brower does not support HTTP5 FileReader.");
+        var g = new FileReader();
+        g.onload = function(a) {
+            try {
+                e = b(a.target.result);
+            } catch (c) {
+                d(null, c);
             }
-            if (family[type] && family[type].length) {
-                family[type].forEach(function(p) {
-                    arr.push(p.value);
-                });
-            }
-            delete family[type];
-        });
-
-        family.marriage = normalizeDatePlace(family.MARR);
-        delete family.MARR;
-        family.license = normalizeDatePlace(family.MARL);
-        delete family.MARL;
-    }
-
-    /**
-     * Normalize important fields in the record list and remove duplicate
-     * keys to simplify database querying.
-     *
-     * @todo Maybe provide custom handlers to override defaults
-     *
-     * @param {object[]} records Output from gedcom.parse
-     * @returns {object}
-     */
-     gedcom.normalize = function (records) {
-         var out = {
-             people: [],
-             families: [],
-             ignored: []
-         };
-         records.forEach(function (record) {
-            if (typeof record.type !== 'string') {
-                out.ignored.push(record);
-            } else if (record.type.toUpperCase() === 'INDI') {
-                out.people.push(record);
-                normalizePerson(record);
-            } else if (record.type.toUpperCase() === 'FAM') {
-                out.families.push(record);
-                normalizeFamily(record);
-            }
-         });
-         return out;
-     };
-
-    GLOBAL.gedcom = gedcom;
-})(window);
+            d(e.records, e.ignored);
+        }, g.onerror = function() {
+            d(null);
+        }, g.onabort = function() {
+            d(null);
+        }, g.readAsText(c);
+    };
+    var p = {};
+    o.georeference = function(a, b) {
+        p.hasOwnProperty(a) || (p[a] = {
+            name: a,
+            longitude: 0,
+            latitude: 0
+        }), b(p[a]);
+    }, o.tree = function() {}, o.normalize = function(a) {
+        var b = {
+            people: [],
+            families: [],
+            ignored: []
+        };
+        return a.forEach(function(a) {
+            "string" != typeof a.type ? b.ignored.push(a) : "INDI" === a.type.toUpperCase() ? (b.people.push(a), 
+            m(a)) : "FAM" === a.type.toUpperCase() && (b.families.push(a), n(a));
+        }), b;
+    }, a.gedcom = o;
+}(window);

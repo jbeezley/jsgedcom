@@ -420,6 +420,8 @@
         delete family.MARR;
         family.license = normalizeDatePlace(family.MARL);
         delete family.MARL;
+        family.divorce = normalizeDatePlace(family.DIV);
+        delete family.DIV;
     }
 
     /**
