@@ -89,7 +89,12 @@
         delete a.SEX;
     }
     function m(a) {
-        delete a.CHAN, delete a._UID, delete a.type, l(a), c(a), g(a), h(a), i(a), j(a);
+        delete a.CHAN, delete a._UID, delete a.type, l(a), c(a), g(a), h(a), i(a), j(a), 
+        a.childOf = [], a.FAMC && a.FAMC.forEach(function(b) {
+            a.childOf.push(b.value);
+        }), delete a.FAMC, a.parentOf = [], a.FAMS && a.FAMS.forEach(function(b) {
+            a.parentOf.push(b.value);
+        }), delete a.FAMS;
     }
     function n(a) {
         a.children = [], a.parents = [], [ "HUSB", "WIFE", "CHIL" ].forEach(function(b) {
