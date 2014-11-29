@@ -97,7 +97,8 @@
         }), delete a.FAMS;
     }
     function n(a) {
-        a.children = [], a.parents = [], [ "HUSB", "WIFE", "CHIL" ].forEach(function(b) {
+        a.children = [], a.parents = [], a.father = a.HUSB ? a.HUSB[0].value : null, a.mother = a.WIFE ? a.WIFE[0].value : null, 
+        [ "HUSB", "WIFE", "CHIL" ].forEach(function(b) {
             var c = a.parents;
             "CHIL" === b && (c = a.children), a[b] && a[b].length && a[b].forEach(function(a) {
                 c.push(a.value);
@@ -144,9 +145,23 @@
             families: [],
             ignored: []
         };
-        return a.forEach(function(a) {
+        a.forEach(function(a) {
             "string" != typeof a.type ? b.ignored.push(a) : "INDI" === a.type.toUpperCase() ? (b.people.push(a), 
             m(a)) : "FAM" === a.type.toUpperCase() && (b.families.push(a), n(a));
+        });
+        var c = TAFFY(b.familes);
+        return b.people.forEach(function(a) {
+            a.childOf.forEach(function(b) {
+                var d = c({
+                    id: b
+                }).get()[0];
+                d && (d.father && (a.father = d.father), d.mother && (persion.mother = d.mother));
+            }), a.children = [], a.parentOf.forEach(function(b) {
+                var d = c({
+                    id: b
+                }).get()[0];
+                d && Array.prototype.push.call(a.children, d.children);
+            });
         }), b;
     }, a.gedcom = o;
 }(window);

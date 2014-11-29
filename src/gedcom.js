@@ -81,7 +81,7 @@
                 });
                 console.log('Unhandled structure at line ' + index);
             }
-            
+
         });
 
         return {
@@ -359,7 +359,7 @@
         // maybe preload all PLAC tags before normalization
         gedcom.georeference(place, done);
     }
-    
+
     function normalizePlaces(places, done) {
         if (places && places[0]) {
             gedcom.georeference(places[0], done);
@@ -388,7 +388,7 @@
         delete person.SEX;
     }
 
-    function normalizePerson(person) {
+    function normalizePerson(person, people, families) {
         delete person.CHAN;
         delete person._UID;
         delete person.type;
@@ -403,6 +403,7 @@
         if (person.FAMC) {
             person.FAMC.forEach(function (fam) {
                 person.childOf.push(fam.value);
+
             });
         }
         delete person.FAMC;
@@ -419,6 +420,8 @@
     function normalizeFamily(family) {
         family.children = [];
         family.parents = [];
+        family.father = family.HUSB ? family.HUSB[0].value : null;
+        family.mother = family.WIFE ? family.WIFE[0].value : null;
         ['HUSB', 'WIFE', 'CHIL'].forEach(function (type) {
             var arr = family.parents;
             if (type === 'CHIL') {
@@ -465,6 +468,31 @@
                 out.families.push(record);
                 normalizeFamily(record);
             }
+         });
+
+         var db = TAFFY(out.familes);
+         out.people.forEach(function (person) {
+            var family;
+
+            person.childOf.forEach(function (familyId) {
+                var family = db({'id': familyId}).get()[0];
+                if (family) {
+                    if (family.father) {
+                        person.father = family.father;
+                    }
+                    if (family.mother) {
+                        persion.mother = family.mother;
+                    }
+                }
+            });
+
+            person.children = [];
+            person.parentOf.forEach(function (familyId) {
+                var family = db({'id': familyId}).get()[0];
+                if (family) {
+                    Array.prototype.push.call(person.children, family.children);
+                }
+            });
          });
          return out;
      };
