@@ -149,18 +149,18 @@
             "string" != typeof a.type ? b.ignored.push(a) : "INDI" === a.type.toUpperCase() ? (b.people.push(a), 
             m(a)) : "FAM" === a.type.toUpperCase() && (b.families.push(a), n(a));
         });
-        var c = TAFFY(b.familes);
+        var c = TAFFY(b.families);
         return b.people.forEach(function(a) {
-            a.childOf.forEach(function(b) {
+            a.father = null, a.mother = null, a.childOf.forEach(function(b) {
                 var d = c({
                     id: b
                 }).get()[0];
-                d && (d.father && (a.father = d.father), d.mother && (persion.mother = d.mother));
+                d && (d.father && (a.father = d.father), d.mother && (a.mother = d.mother));
             }), a.children = [], a.parentOf.forEach(function(b) {
                 var d = c({
                     id: b
                 }).get()[0];
-                d && Array.prototype.push.call(a.children, d.children);
+                d && Array.prototype.push.apply(a.children, d.children);
             });
         }), b;
     }, a.gedcom = o;

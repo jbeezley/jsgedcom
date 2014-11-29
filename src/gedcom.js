@@ -470,10 +470,12 @@
             }
          });
 
-         var db = TAFFY(out.familes);
+         var db = TAFFY(out.families);
          out.people.forEach(function (person) {
             var family;
 
+            person.father = null;
+            person.mother = null;
             person.childOf.forEach(function (familyId) {
                 var family = db({'id': familyId}).get()[0];
                 if (family) {
@@ -481,7 +483,7 @@
                         person.father = family.father;
                     }
                     if (family.mother) {
-                        persion.mother = family.mother;
+                        person.mother = family.mother;
                     }
                 }
             });
@@ -490,7 +492,7 @@
             person.parentOf.forEach(function (familyId) {
                 var family = db({'id': familyId}).get()[0];
                 if (family) {
-                    Array.prototype.push.call(person.children, family.children);
+                    Array.prototype.push.apply(person.children, family.children);
                 }
             });
          });
