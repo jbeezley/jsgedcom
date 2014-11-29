@@ -398,6 +398,22 @@
         normalizeRes(person);
         normalizeDeath(person);
         normalizeBuried(person);
+
+        person.childOf = [];
+        if (person.FAMC) {
+            person.FAMC.forEach(function (fam) {
+                person.childOf.push(fam.value);
+            });
+        }
+        delete person.FAMC;
+
+        person.parentOf = [];
+        if (person.FAMS) {
+            person.FAMS.forEach(function (fam) {
+                person.parentOf.push(fam.value);
+            });
+        }
+        delete person.FAMS;
     }
 
     function normalizeFamily(family) {
