@@ -154,7 +154,7 @@
             try {
                 result = _parse(file);
             } catch(err) {
-                done(null, err);
+                done(null, err, file);
                 return null;
             }
             done(result.records, result.ignored);
@@ -171,9 +171,14 @@
             try {
                 result = _parse(evt.target.result);
             } catch(err) {
-                done(null, err);
+                done(null, err, evt.target.result);
+                return;
             }
-            done(result.records, result.ignored);
+            if (result === null) {
+                done(null, "unknown", evt.target.result);
+                return;
+            }
+            done(result.records, result.ignored, evt.target.result);
         };
 
         reader.onerror = function () {
@@ -452,52 +457,107 @@
      * @param {object[]} records Output from gedcom.parse
      * @returns {object}
      */
-     gedcom.normalize = function (records) {
-         var out = {
-             people: [],
-             families: [],
-             ignored: []
-         };
-         records.forEach(function (record) {
-            if (typeof record.type !== 'string') {
-                out.ignored.push(record);
-            } else if (record.type.toUpperCase() === 'INDI') {
-                out.people.push(record);
-                normalizePerson(record);
-            } else if (record.type.toUpperCase() === 'FAM') {
-                out.families.push(record);
-                normalizeFamily(record);
-            }
-         });
-
-         var db = TAFFY(out.families);
-         out.people.forEach(function (person) {
-            var family;
-
-            person.father = null;
-            person.mother = null;
-            person.childOf.forEach(function (familyId) {
-                var family = db({'id': familyId}).get()[0];
-                if (family) {
-                    if (family.father) {
-                        person.father = family.father;
-                    }
-                    if (family.mother) {
-                        person.mother = family.mother;
-                    }
-                }
-            });
-
-            person.children = [];
-            person.parentOf.forEach(function (familyId) {
-                var family = db({'id': familyId}).get()[0];
-                if (family) {
-                    Array.prototype.push.apply(person.children, family.children);
-                }
-            });
-         });
-         return out;
+    gedcom.normalize = function (records) {
+     var out = {
+         people: [],
+         families: [],
+         ignored: []
      };
+     records.forEach(function (record) {
+        if (typeof record.type !== 'string') {
+            out.ignored.push(record);
+        } else if (record.type.toUpperCase() === 'INDI') {
+            out.people.push(record);
+            normalizePerson(record);
+        } else if (record.type.toUpperCase() === 'FAM') {
+            out.families.push(record);
+            normalizeFamily(record);
+        }
+     });
+
+     var db = TAFFY(out.families);
+     out.people.forEach(function (person) {
+        var family;
+
+        person.father = null;
+        person.mother = null;
+        person.childOf.forEach(function (familyId) {
+            var family = db({'id': familyId}).get()[0];
+            if (family) {
+                if (family.father) {
+                    person.father = family.father;
+                }
+                if (family.mother) {
+                    person.mother = family.mother;
+                }
+            }
+        });
+
+        person.children = [];
+        person.parentOf.forEach(function (familyId) {
+            var family = db({'id': familyId}).get()[0];
+            if (family) {
+                Array.prototype.push.apply(person.children, family.children);
+            }
+        });
+     });
+     return out;
+    };
+
+    /**
+    * Builds a simplified family trees out of a records array.
+    *
+    * @returns {object[]}
+    */
+    gedcom.tree = function (records) {
+        var norm = gedcom.normalize(records);
+        var db = TAFFY(norm.people);
+        var fb = TAFFY(norm.families);
+        var roots = fb({father: null, mother: null}).get();
+
+        function processNode(node) {
+            node.people = {
+                father: db({id: node.father}).first(),
+                mother: db({id: node.mother}).first(),
+                children: node.children.map(function (child) {
+                    return db({id: child}).first();
+                })
+            };
+            var children = [];
+            node.children.forEach(function (child) {
+                Array.prototype.push.apply(
+                    children,
+                    fb({mother: child}).get()
+                );
+                Array.prototype.push.apply(
+                    children,
+                    fb({father: child}).get()
+                );
+            });
+            var descendents = [node.id];
+            children.forEach(function (child) {
+                if (!child.descendents) {
+                    Array.prototype.push.apply(
+                        descendents,
+                        processNode(child)
+                    );
+                } else {
+                    Array.prototype.push.apply(
+                        descendents,
+                        child.descendents
+                    );
+                }
+            });
+            node.children = children;
+            node.descendents = descendents;
+            return descendents;
+        }
+
+        roots.forEach(function (root) {
+            processNode(root);
+        });
+        return roots;
+    };
 
     GLOBAL.gedcom = gedcom;
 })(window);

@@ -113,7 +113,7 @@
             try {
                 e = b(c);
             } catch (f) {
-                return d(null, f), null;
+                return d(null, f, c), null;
             }
             return d(e.records, e.ignored), e.records;
         }
@@ -123,9 +123,9 @@
             try {
                 e = b(a.target.result);
             } catch (c) {
-                d(null, c);
+                return void d(null, c, a.target.result);
             }
-            d(e.records, e.ignored);
+            return null === e ? void d(null, "unknown", a.target.result) : void d(e.records, e.ignored, a.target.result);
         }, g.onerror = function() {
             d(null);
         }, g.onabort = function() {
@@ -163,5 +163,40 @@
                 d && Array.prototype.push.apply(a.children, d.children);
             });
         }), b;
+    }, o.tree = function(a) {
+        function b(a) {
+            a.people = {
+                father: d({
+                    id: a.father
+                }).first(),
+                mother: d({
+                    id: a.mother
+                }).first(),
+                children: a.children.map(function(a) {
+                    return d({
+                        id: a
+                    }).first();
+                })
+            };
+            var c = [];
+            a.children.forEach(function(a) {
+                Array.prototype.push.apply(c, e({
+                    mother: a
+                }).get()), Array.prototype.push.apply(c, e({
+                    father: a
+                }).get());
+            });
+            var f = [ a.id ];
+            return c.forEach(function(a) {
+                a.descendents ? Array.prototype.push.apply(f, a.descendents) : Array.prototype.push.apply(f, b(a));
+            }), a.children = c, a.descendents = f, f;
+        }
+        var c = o.normalize(a), d = TAFFY(c.people), e = TAFFY(c.families), f = e({
+            father: null,
+            mother: null
+        }).get();
+        return f.forEach(function(a) {
+            b(a);
+        }), f;
     }, a.gedcom = o;
 }(window);
